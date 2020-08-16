@@ -173,6 +173,7 @@ public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport imp
 	private final Set<String> alreadyCreated = Collections.newSetFromMap(new ConcurrentHashMap<>(256));
 
 	/** Names of beans that are currently in creation. */
+	// 存放正在被创建的对象
 	private final ThreadLocal<Object> prototypesCurrentlyInCreation =
 			new NamedThreadLocal<>("Prototype beans currently in creation");
 
@@ -204,6 +205,7 @@ public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport imp
 
 	@Override
 	public <T> T getBean(String name, Class<T> requiredType) throws BeansException {
+		// 空壳方法
 		return doGetBean(name, requiredType, null, false);
 	}
 
@@ -243,10 +245,51 @@ public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport imp
 			String name, @Nullable Class<T> requiredType, @Nullable Object[] args, boolean typeCheckOnly)
 			throws BeansException {
 
+		// 验证bean的名字是否非法
 		String beanName = transformedBeanName(name);
 		Object bean;
 
 		// Eagerly check singleton cache for manually registered singletons.
+		/*
+				getSingleton 是一个非常值得研究的方法，这个方法在 bean 实例化过程中被调用了两次，第二次调用是在第一次里
+			这里是第一次调用 getSingleton 方法，在下面spring还会再调用一次，但是两次调用的方法不一样，属于重载。此处调用的参数为 beanName
+			第一次，也就是这次调用 getSingleton(String) 方法是 循环依赖 最重要的方法。
+
+			关于这个方法的总结如下：
+				1. 首先 spring 会通过 单例池 根据 bean的名字去获取这个 bean
+				2. 如果对象在 单例池 中存在，也就是对象被创建过了，则直接从单例池map中获取到这个对象并返回。
+			此时按照执行顺序分析，单例池map中不可能存在这个对象，但是为什么又要这么设计呢？
+			答案也是比较显而易见：doGetBean这个方法，不仅仅在实例化bean对象时会使用到，在getBean时也会使用到，这个方法是一个通用的方法。
+
+				以上是第一次调用 getSingleton(String) 方法，此时获取到的bean实例是空的，接下来spring就会创建实例，也就是new出这个对象。
+			第二次调用 getSingleton(String beanName,ObjectFactory<?> singletonFactory) 时，会在一个 set 集合中记录，这个bean的对象正在被创建
+
+				简而言之，第一次调用 getSingleton 是判断这个bean对象有没有被创建，第二次调用 getSingleton 是记录正在被创建的bean。
+
+			spring 实例化一个bean的底层用到的是反射的原理，比较复杂，需要推断构造方法等等，如果不想过分深究，可以简单理解为构造一个对象或者new一个对象。
+
+				但是这时候只是一个对象被创建，还不能称之为一个spring bean。
+				接下来的过程就是完成spring bean 的生命周期，过程中spring会判断是否允许循环引用（包括是否支持循环引用的推断），如果允许循环引用，spring会把这个即将成为
+			bean的对象临时保存起来，放到一个 map 中(这个map不是单例池，是另一个map)。其中单例池叫做 singletonObjects、这个临时存放的 map 叫做 earlySingletonObjects
+
+			三个 map：
+				通过上面的分析可以得知，spring其实一共三个map，也叫三级缓存
+			1. 单例池--singletonObjects：存放单例的spring bean
+			2. 临时对象--singletonFactories：存放临时对象，主要指的是没有完成spring bean 生命周期的对象
+			3. 临时对象--earlySingletonObjects：存放临时对象，也是没有完成spring bean 生命周期的对象
+
+				关于3个 map 的作用，第一个 map 就是所谓不严谨意义上的“spring容器”，存放着spring bean，方便去getBean(),当然这个叫法本身就不正确，但是不想深究的话可以暂时这么理解；
+			第二个map和第三个map跟循环引用有关，主要是为了方便循环引用。
+				当把对象存放到 singletonFactories 后，会接着去进行 spring bean 的生命周期，
+			当进行到对 a 进行 属性填充 这个周期时，发现 a 引用了一个依赖B类，spring 就会判断 B类有没有在spring容器中，这是会去单例池map（singletonObjects）中判断是否有这个Bean。
+			如果单例池中没有B类的bean，那么就会去 createBean 创建这个 bean。于是又回到了一个新的bean的实例化起点。
+				当B类创建第一次调用完 getSingleton 方法返回空后，调用第二次 getSingleton 方法，同样也会在 set集合（singletonsCurrentlyInCreationg）记录 B类 正在被创建，
+				b创建完成后，接着完善b的声明周期，如果这时发现，B允许循环依赖，而且依赖了A，于是又会去单例池看看a有没有被创建，又会调用第一个getSingleton方法
+				重点：这时候就不一样了，由于 第一个 getSingleton 方法中，会依次判断 a 的bean 是否存在（单例池）、a的bean是否正在创建（earlySingletonObjects），
+			因此此次创建a调用时，就可以获得到a这个对象，返回给B了，于是B就注入了a属性，接着b被创建完成，成为 b bean，a在注入b属性就可以注入成功。
+				最后a的生命周期完成，a成为一个spring bean。
+
+		 */
 		Object sharedInstance = getSingleton(beanName);
 		if (sharedInstance != null && args == null) {
 			if (logger.isTraceEnabled()) {
@@ -258,17 +301,22 @@ public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport imp
 					logger.trace("Returning cached instance of singleton bean '" + beanName + "'");
 				}
 			}
+			/**
+			 * 如果不等于控直接返回取得到的对象
+			 */
 			bean = getObjectForBeanInstance(sharedInstance, name, beanName, null);
 		}
 
 		else {
 			// Fail if we're already creating this bean instance:
 			// We're assumably within a circular reference.
+			// 判断这个类是不是正在被创建，如果正在被创建，则是相当于，自己依赖了自己，抛出异常
 			if (isPrototypeCurrentlyInCreation(beanName)) {
 				throw new BeanCurrentlyInCreationException(beanName);
 			}
 
 			// Check if bean definition exists in this factory.
+			// 检查验证 bean 的属性
 			BeanFactory parentBeanFactory = getParentBeanFactory();
 			if (parentBeanFactory != null && !containsBeanDefinition(beanName)) {
 				// Not found -> check parent.
@@ -290,6 +338,7 @@ public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport imp
 				}
 			}
 
+			// 还是检查验证
 			if (!typeCheckOnly) {
 				markBeanAsCreated(beanName);
 			}
@@ -319,14 +368,19 @@ public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport imp
 
 				// Create bean instance.
 				if (mbd.isSingleton()) {
+					// 又一次调用了 getSingleton 方法
 					sharedInstance = getSingleton(beanName, () -> {
 						try {
+							// 验证完成后创建对象
+							// 如果需要代理，还完成了代理
+							// 狭义上的 spring bean 的声明周期的开始
 							return createBean(beanName, mbd, args);
 						}
 						catch (BeansException ex) {
 							// Explicitly remove instance from singleton cache: It might have been put there
 							// eagerly by the creation process, to allow for circular reference resolution.
 							// Also remove any beans that received a temporary reference to the bean.
+							// 销毁单例
 							destroySingleton(beanName);
 							throw ex;
 						}
@@ -1281,6 +1335,7 @@ public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport imp
 	 */
 	protected RootBeanDefinition getMergedLocalBeanDefinition(String beanName) throws BeansException {
 		// Quick check on the concurrent map first, with minimal locking.
+		// 从 map 中获取对应名称的beanDefinition
 		RootBeanDefinition mbd = this.mergedBeanDefinitions.get(beanName);
 		if (mbd != null && !mbd.stale) {
 			return mbd;

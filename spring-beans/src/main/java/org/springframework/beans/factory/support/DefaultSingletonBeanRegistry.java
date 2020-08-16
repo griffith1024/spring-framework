@@ -75,12 +75,15 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 
 
 	/** Cache of singleton objects: bean name to bean instance. */
+	// 单例池：存放单例的spring bean，三级缓存之一
 	private final Map<String, Object> singletonObjects = new ConcurrentHashMap<>(256);
 
 	/** Cache of singleton factories: bean name to ObjectFactory. */
+	// 临时对象：存放临时对象，主要指的是没有完成spring bean 生命周期的对象，三级缓存之一
 	private final Map<String, ObjectFactory<?>> singletonFactories = new HashMap<>(16);
 
 	/** Cache of early singleton objects: bean name to bean instance. */
+	// 临时对象：存放临时对象，主要指的是没有完成spring bean 生命周期的对象，三级缓存之一
 	private final Map<String, Object> earlySingletonObjects = new HashMap<>(16);
 
 	/** Set of registered singletons, containing the bean names in registration order. */
@@ -152,6 +155,9 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 	 * @param singletonFactory the factory for the singleton object
 	 */
 	protected void addSingletonFactory(String beanName, ObjectFactory<?> singletonFactory) {
+		/**
+		 * 参数 singletonFactory 是一个单例工厂，工厂里面存了bean的相关信息，可以生产bean
+		 */
 		Assert.notNull(singletonFactory, "Singleton factory must not be null");
 		synchronized (this.singletonObjects) {
 			if (!this.singletonObjects.containsKey(beanName)) {
@@ -178,15 +184,34 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 	 */
 	@Nullable
 	protected Object getSingleton(String beanName, boolean allowEarlyReference) {
+		/**
+		 * 关于三级缓存
+		 * 1. singletonObjects：单例池
+		 * 2. singletonFactories：工厂map，
+		 * 3. earlySingletonObjects：存储未初始化完成的bean的对象，如果允许循环依赖，则被依赖的bean在创建时放在了三级，也就是这里
+		 */
+		// 从单例池里获取 bean
 		Object singletonObject = this.singletonObjects.get(beanName);
+		// 如果单例池没有获取到，则说明这个 bean 没有被创建，此时从判断这个bean是不是正在被创建
 		if (singletonObject == null && isSingletonCurrentlyInCreation(beanName)) {
+			// 如果正在被创建
 			synchronized (this.singletonObjects) {
+				// 则从正在被创建的对象中获取
 				singletonObject = this.earlySingletonObjects.get(beanName);
+				// 如果允许循环依赖并且单例池中没有bean
 				if (singletonObject == null && allowEarlyReference) {
+					// 则从这个缓存中获取
 					ObjectFactory<?> singletonFactory = this.singletonFactories.get(beanName);
 					if (singletonFactory != null) {
+						// 获取对象
 						singletonObject = singletonFactory.getObject();
+						// 存入三级缓存：防止重复创建，不需要每次都 singletonFactory.getObject();
+						// 工厂会相当复杂，因此为了重复执行和创建，提升性能，所以直接放入三级缓存
 						this.earlySingletonObjects.put(beanName, singletonObject);
+						// 从二级缓存清除：二级缓存还有一个作用，如果说循环依赖时，有个依赖有aop代理，就可以在实例化时，通过工厂把aop提前执行，防止实例化完毕了还没有执行aop
+						/**
+						 * 补充一点：如果一个对象被aop作用，则相当于改变了这个对象，这个对象被增强了，变成了代理对象
+						 */
 						this.singletonFactories.remove(beanName);
 					}
 				}
