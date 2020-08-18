@@ -14,7 +14,7 @@ dependencies {
     compile("org.apache.tomcat.embed:tomcat-embed-core:8.5.33")
     compile(project(":spring-context"))
     compile(project(":spring-webmvc"))
-//    compile("javax.servlet:javax.servlet-api")
+    compile("com.alibaba:fastjson:1.2.73")
     compileOnly group: 'javax.servlet',name: 'javax.servlet-api',version: '4.0.1'
     compile 'mysql:mysql-connector-java:5.1.44'
     compile 'org.mybatis:mybatis:3.4.5'
