@@ -25,14 +25,14 @@ public class MyWebApplicationInitializer implements WebApplicationInitializer {
 	@Override
 	public void onStartup(javax.servlet.ServletContext servletContext) throws ServletException {
 		//初始化 Spring web 应用
-		AnnotationConfigWebApplicationContext context = new AnnotationConfigWebApplicationContext();
-		context.register(AppConfig.class);
-		context.refresh();
+		// AnnotationConfigWebApplicationContext context = new AnnotationConfigWebApplicationContext();
+		// context.register(AppConfig.class);
+		// context.refresh();
 		//注册servlet,必须关联 上下文，以便于用 appConfi.class 代替 spring.xml
-		DispatcherServlet dispatcherServlet = new DispatcherServlet(context);
-		ServletRegistration.Dynamic registration = servletContext.addServlet("mvc", dispatcherServlet);
-		registration.setLoadOnStartup(1);
+		// DispatcherServlet dispatcherServlet = new DispatcherServlet(context);
+		// ServletRegistration.Dynamic registration = servletContext.addServlet("mvc", dispatcherServlet);
+		// registration.setLoadOnStartup(1);
 		//拦截请求
-		registration.addMapping("/");
+		// registration.addMapping("/");
 	}
 }

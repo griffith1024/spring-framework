@@ -27,6 +27,7 @@ public class AppConfig implements WebMvcConfigurer {
 	@Override
 	public void configureMessageConverters(List<HttpMessageConverter<?>> converters) {
 		System.out.println("添加 json 解析器");
+		// 添加 fastJson 的 json 解析器
 		converters.add(new FastJsonHttpMessageConverter());
 	}
 }
