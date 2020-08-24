@@ -504,7 +504,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 
 		try {
 			// Give BeanPostProcessors a chance to return a proxy instead of the target bean instance.
-			// 调用 后置处理器，后置处理器里会回调扩展点的实现
+			// 第一次调用后置处理器：
 			Object bean = resolveBeforeInstantiation(beanName, mbdToUse);
 			if (bean != null) {
 				return bean;
@@ -516,7 +516,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 		}
 
 		try {
-			// 实际上创建bean的方法
+			// 实际上创建bean的方法：里面有调用后置处理器
 			Object beanInstance = doCreateBean(beanName, mbdToUse, args);
 			if (logger.isTraceEnabled()) {
 				logger.trace("Finished creating instance of bean '" + beanName + "'");
@@ -571,7 +571,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 		synchronized (mbd.postProcessingLock) {
 			if (!mbd.postProcessed) {
 				try {
-					// 第三次调用后置处理器
+					// 第三次调用后置处理器：缓存 bean 的配置信息
 					applyMergedBeanDefinitionPostProcessors(mbd, beanType, beanName);
 				}
 				catch (Throwable ex) {
@@ -593,7 +593,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 				logger.trace("Eagerly caching bean '" + beanName +
 						"' to allow for resolving potential circular references");
 			}
-			//第四次调用后置处理器，判断是否需要 aop，这个后置处理器需要的是singletonFactory
+			//第四次调用后置处理器，判断是否需要 aop，这个后置处理器需要的是singletonFactory，解决循环引用问题
 			/**
 			 * singletonFactory是一个单例工厂，单例工厂需要beanName，BeanDefinition，bean，因此是可以生产bean 的，以便于通过工厂对bean进行改造
 			 */
@@ -1127,6 +1127,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 			if (!mbd.isSynthetic() && hasInstantiationAwareBeanPostProcessors()) {
 				Class<?> targetType = determineTargetType(beanName, mbd);
 				if (targetType != null) {
+					// 第一次调用后置处理器
 					bean = applyBeanPostProcessorsBeforeInstantiation(targetType, beanName);
 					if (bean != null) {
 						bean = applyBeanPostProcessorsAfterInitialization(bean, beanName);
@@ -1151,9 +1152,15 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 	 */
 	@Nullable
 	protected Object applyBeanPostProcessorsBeforeInstantiation(Class<?> beanClass, String beanName) {
+		// 拿出所有的 后置处理器
 		for (BeanPostProcessor bp : getBeanPostProcessors()) {
+			// 第一个 后置处理器 InstantiationAwareBeanPostProcessor
 			if (bp instanceof InstantiationAwareBeanPostProcessor) {
 				InstantiationAwareBeanPostProcessor ibp = (InstantiationAwareBeanPostProcessor) bp;
+				/**
+				 * 这个方法跟 BeanPostProcessor 中的 before 方法不是一个！！！
+				 * 判断 这个 bean 有没有继承各种 bean
+				 */
 				Object result = ibp.postProcessBeforeInstantiation(beanClass, beanName);
 				if (result != null) {
 					return result;
