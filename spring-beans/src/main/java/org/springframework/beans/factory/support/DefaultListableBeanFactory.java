@@ -890,7 +890,6 @@ public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFacto
 			// 以下都是验证 BeanDefinition，如判断条件不为抽象且是单例且不是懒加载
 			if (!bd.isAbstract() && bd.isSingleton() && !bd.isLazyInit()) {
 				// FactoryBean 和 BeanFactory 的区别：
-				// todo
 				if (isFactoryBean(beanName)) {
 					Object bean = getBean(FACTORY_BEAN_PREFIX + beanName);
 					if (bean instanceof FactoryBean) {
