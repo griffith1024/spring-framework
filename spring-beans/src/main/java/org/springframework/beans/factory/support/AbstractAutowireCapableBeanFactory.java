@@ -607,7 +607,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 			// 里面完成第五次和第六次后置处理器的调用
 			populateBean(beanName, mbd, instanceWrapper);
 			// 初始化spring bean
-			// 里面完成第七次和第八次后置处理器的调用
+			// 里面完成第七次和第八次后置处理器的调用，aop 也在此完成
 			exposedObject = initializeBean(beanName, exposedObject, mbd);
 		}
 		catch (Throwable ex) {
@@ -1827,6 +1827,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 					beanName, "Invocation of init method failed", ex);
 		}
 		if (mbd == null || !mbd.isSynthetic()) {
+			// 后置处理器，主要完成 AOP 代理对象的生成
 			wrappedBean = applyBeanPostProcessorsAfterInitialization(wrappedBean, beanName);
 		}
 

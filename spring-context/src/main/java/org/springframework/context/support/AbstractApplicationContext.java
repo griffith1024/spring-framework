@@ -517,9 +517,20 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 	public void refresh() throws BeansException, IllegalStateException {
 		synchronized (this.startupShutdownMonitor) {
 			// Prepare this context for refreshing.
-			// 准备工作：
-			// 包括设置启动时间、是否激活标志位
-			// 初始化属性源（property source）配置
+			/**
+			 * 主要完成 spring 应用上下文启动的准备：
+			 * - 启动时间：startupDate
+			 * 			日志性质的东西，在日志中输出 spring 是什么时候启动的，要注意区别父子层次的应用上下文，
+			 * 		主要是把多层次的应用上下文加以区别
+			 * - 状态标识：closed（false）、active（true）
+			 * 			启动时，将 closed 的状态为从 true 置为 false 状态，active 从 false 状态置为 true 状态。
+			 * 		通过 Actomic 的布尔类型实现，以确保原子性。
+			 * - 初始化 PropertySource：initPropertySources()
+			 * - 校验 Environment 中必须属性
+			 * - 初始化事件监听器集合
+			 * 		多个事件监听器的集合，多个，不一定是 Bean
+			 * - 初始化早期 spring 事件集合
+			 */
 			prepareRefresh();
 
 			// Tell the subclass to refresh the internal bean factory.
@@ -595,7 +606,13 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 	 */
 	protected void prepareRefresh() {
 		// Switch to active.
+		/**
+		 * 设置启动时间
+		 */
 		this.startupDate = System.currentTimeMillis();
+		/**
+		 * 设置状态位
+		 */
 		this.closed.set(false);
 		this.active.set(true);
 
@@ -609,6 +626,10 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 		}
 
 		// Initialize any placeholder property sources in the context environment.
+		/**
+		 * 空的实现，默认是为子类进行扩展，它的实现主要是 web 的实现，也就是说 web 程序需要扩展我们的配置属性源
+		 * 比如里面扩展了 servlet 的相关配置源，相当于提早的把 Environment 进行了初始化
+		 */
 		initPropertySources();
 
 		// Validate that all properties marked as required are resolvable:
